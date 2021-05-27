@@ -10,13 +10,13 @@
 #
 #     result = server_response_single_from_dict(json.loads(json_string))
 
-from enum import Enum
 from dataclasses import dataclass
+from datetime import datetime
+from enum import Enum
 from typing import Optional, List, Any, TypeVar, Callable, Type, cast
 from uuid import UUID
-from datetime import datetime
-import dateutil.parser
 
+import dateutil.parser
 
 T = TypeVar("T")
 EnumT = TypeVar("EnumT", bound=Enum)
@@ -114,6 +114,14 @@ class Player:
         result["ping"] = from_union([from_int, from_none], self.ping)
         return result
 
+    def __str__(self):
+        return f"\"{self.name}\" (#{self.id})"
+
+    def __hash__(self):
+        return hash(str(self))
+
+    def __eq__(self, other):
+        return self.name == other.name
 
 @dataclass
 class Vars:
