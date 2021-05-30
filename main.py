@@ -173,7 +173,7 @@ class MyClient(discord.Client):
                 # CHANGES START
                 if fivem_server.data.resources != last_response.data.resources:
                     embed.add_field(name="Resources",
-                                    value=getDiff(last_response.data.resources, fivem_server.data.resources).replace("%20", ""))
+                                    value=getDiff(last_response.data.resources, fivem_server.data.resources).replace("%20", " "))
                     changes += 1
                 if fivem_server.data.vars.sv_enforce_game_build != last_response.data.vars.sv_enforce_game_build:
                     embed.add_field(name="Game Version",
@@ -195,7 +195,7 @@ class MyClient(discord.Client):
                 #
                 self.channel.topic = f"[{len(fivem_server.data.players)} / {fivem_server.data.sv_maxclients}] {sanitize(fivem_server.data.vars.sv_project_name)}"
         except Exception as ex:
-            await self.fail(server, f"```\nFailed to request data for \"{server.name}\" ({server.id}): {ex.args[0]}\n```")
+            await self.fail(server, f"```\nFailed to request data for \"{server.name}\" ({server.id}): {ex.args}\n```")
 
     def load_response(self, filename):
         if not path.isfile(filename): self.save_response({}, filename)
