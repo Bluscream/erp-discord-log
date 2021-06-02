@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 import re
 from datetime import datetime
 from os import path
@@ -8,32 +9,34 @@ from pprint import pformat, pprint
 from stat import ST_MTIME
 from time import time
 from pathlib import Path
+from typing import Optional, Any, List, TypeVar, Type, Callable, cast
 
 import aiohttp
 import discord
 
-from Classes.Server import Server
+from Classes.Player import Player, PlayerDB
+from Classes import Server
 from Classes.fivem.ServerResponseSingle import server_response_single_from_dict, ServerResponseSingle
 
 
-def modification_date(filename):
+def modification_date(filename) -> datetime:
     t = path.getmtime(filename)
     return datetime.fromtimestamp(t)
-def file_age_in_seconds(pathname):
+def file_age_in_seconds(pathname) -> float:
     return time() - os_stat(pathname)[ST_MTIME]
-def embed_not_empty(embed):
+def embed_not_empty(embed) -> bool:
     return embed.title or embed.description or (embed.footer is not discord.Embed.Empty) or (
                 embed.fields is not discord.Embed.Empty)
-def cacheFile(id):
+def cacheFile(id) -> str:
     return f"cache/{id}.cache.json"
-def sanitize(input):
+def sanitize(input) -> str:
     return re.sub(r"\^\d", "", input.strip(), 0, re.MULTILINE)
 
 
-def getDiff(old, new):
-    missing = (set(old).difference(new));
+def getDiff(old, new) -> Optional[str]:
+    missing = (set(old).difference(new))
     is_missing = len(missing) > 0
-    added = (set(new).difference(old));
+    added = (set(new).difference(old))
     is_added = len(added) > 0
     if is_missing or is_added:
         i = ["```diff"]
@@ -44,7 +47,7 @@ def getDiff(old, new):
     return None
 
 
-def getPlayerDiff(old, new):
+def getPlayerDiff(old, new) -> Optional[str]:
     missing = (set(old).difference(new))
     is_missing = len(missing) > 0
     added = (set(new).difference(old))
@@ -58,7 +61,7 @@ def getPlayerDiff(old, new):
     return None
 
 
-def getPlayers(players):
+def getPlayers(players) -> List[str]:
     return sorted([f"#{o.id} \"{sanitize(o.name)}\" ({o.ping}ms)" for o in players])
 
 
@@ -68,12 +71,15 @@ class MyClient(discord.Client):
     webclient: aiohttp.ClientSession
     channel: discord.TextChannel
     min_cache_time = 15
+    playersDBFile = "cache/players.db.json"
+    playersDB: PlayerDB
 
     def __init__(self, **options):
         super().__init__(**options)
         self.servers = list()
-        self.servers.append(Server("ykv8z5", "EndlessRP", ""))
-        self.servers.append(Server("l8r6jj", "EndlessRP Test", ""))
+        self.servers.append(Server.Server("ykv8z5", "EndlessRP", ""))
+        self.servers.append(Server.Server("l8r6jj", "EndlessRP Test", "")) # vkj37r
+        self.playersDB = PlayerDB(self.playersDBFile)
 
     async def on_ready(self):
         self.webclient = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=60))
@@ -103,6 +109,9 @@ class MyClient(discord.Client):
             for player in cache.data.players:
                 embed.add_field(name=f"{player.name} (#{player.id})", value=f"{player.ping}ms")
             await self.send_message(cache, embed=embed)
+        elif cmd[0] == "!player" and len(cmd) > 1:
+            name = " ".join(cmd.pop(0))
+            await self.channel.send(content="```json\n"+json.dumps(Player.to_dict(self.playersDB.getByName(name)[0]))+"\n```")
         elif cmd[0] == "!resources":
             cache = self.get_Cache(cacheFile(sid))
             if not cache: cache = await self.get_Server(sid)
@@ -150,7 +159,7 @@ class MyClient(discord.Client):
             return server_response_single_from_dict(_json)
 
     async def check_5mserver(self, server):
-        try:
+        # try:
             cfile = cacheFile(server.id)
             last_response = self.get_Cache(cfile)
             url = self.api_url + server.id
@@ -159,7 +168,7 @@ class MyClient(discord.Client):
             async with self.webclient.get(url) as response:
                 print(pformat(response))
                 if response.status != 200:
-                    await self.fail(server, f"```\nFailed to request data for \"{server.name}\" ({server.id}): HTTP ERROR {response.status}\n```")
+                    await self.fail(server, f"```\n[{now}]Failed to request data for \"{server.name}\" ({server.id}): HTTP ERROR {response.status}\n```")
                     return
                 _json = await response.json()
                 print(_json)
@@ -167,23 +176,26 @@ class MyClient(discord.Client):
                 if last_response is None: return
                 fivem_server = server_response_single_from_dict(_json)
                 print(pformat(fivem_server))
+                for player in fivem_server.data.players:
+                    self.playersDB.updatePlayer(fivem_server, player)
+                self.playersDB.save()
                 server.error = ""
                 embed = discord.Embed()
-                changes = 0
+                changes = []
                 # CHANGES START
                 if fivem_server.data.resources != last_response.data.resources:
                     embed.add_field(name="Resources",
                                     value=getDiff(last_response.data.resources, fivem_server.data.resources).replace("%20", " "))
-                    changes += 1
+                    changes.append("resources")
                 if fivem_server.data.vars.sv_enforce_game_build != last_response.data.vars.sv_enforce_game_build:
                     embed.add_field(name="Game Version",
                                     value=f"```diff\n-{last_response.data.vars.sv_enforce_game_build}\n+{fivem_server.data.vars.sv_enforce_game_build}```")
-                    changes += 1
+                    changes.append("game version")
                 if fivem_server.data.players != last_response.data.players:
                     embed.add_field(name="Players",
                                     value=getPlayerDiff(last_response.data.players, fivem_server.data.players),
                                     inline=False)
-                    changes += 1
+                    changes.append("players")
                 # CHANGES END
                 if changes:
                     embed.title = "Changes Detected!"
@@ -191,11 +203,11 @@ class MyClient(discord.Client):
                     embed.url = f"https://servers.fivem.net/servers/detail/{server.id}"
                     embed.colour = discord.Colour.orange()
                     embed.timestamp = now
-                    await self.send_message(fivem_server, embed=embed)
+                    await self.send_message(fivem_server, message="**Changes**: " + ", ".join(changes), embed=embed)
                 #
                 self.channel.topic = f"[{len(fivem_server.data.players)} / {fivem_server.data.sv_maxclients}] {sanitize(fivem_server.data.vars.sv_project_name)}"
-        except Exception as ex:
-            await self.fail(server, f"```\nFailed to request data for \"{server.name}\" ({server.id}): {ex.args}\n```")
+        # except Exception as ex:
+            # await self.fail(server, f"```\n[{now}]Failed to request data for \"{server.name}\" ({server.id}): {ex.args}\n``` <@467777925790564352>")
 
     def load_response(self, filename):
         if not path.isfile(filename): self.save_response({}, filename)
@@ -217,4 +229,4 @@ class MyClient(discord.Client):
         await self.channel.send(error)
 
 client = MyClient()
-client.run()
+client.run(os.environ["DISCORD_BOT_TOKEN"])

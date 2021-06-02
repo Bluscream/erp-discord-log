@@ -83,13 +83,9 @@ def to_class(c: Type[T], x: Any) -> dict:
     return cast(Any, x).to_dict()
 
 
-class Endpoint(Enum):
-    THE_1270011234 = "127.0.0.1:1234"
-
-
 @dataclass
 class Player:
-    endpoint: Optional[Endpoint] = None
+    endpoint: Optional[str] = None
     id: Optional[int] = None
     identifiers: Optional[List[str]] = None
     name: Optional[str] = None
@@ -98,7 +94,7 @@ class Player:
     @staticmethod
     def from_dict(obj: Any) -> 'Player':
         assert isinstance(obj, dict)
-        endpoint = from_union([Endpoint, from_none], obj.get("endpoint"))
+        endpoint = from_union([from_str, from_none], obj.get("endpoint"))
         id = from_union([from_int, from_none], obj.get("id"))
         identifiers = from_union([lambda x: from_list(from_str, x), from_none], obj.get("identifiers"))
         name = from_union([from_str, from_none], obj.get("name"))
