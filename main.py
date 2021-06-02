@@ -159,7 +159,7 @@ class MyClient(discord.Client):
             return server_response_single_from_dict(_json)
 
     async def check_5mserver(self, server):
-        # try:
+        try:
             cfile = cacheFile(server.id)
             last_response = self.get_Cache(cfile)
             url = self.api_url + server.id
@@ -176,9 +176,6 @@ class MyClient(discord.Client):
                 if last_response is None: return
                 fivem_server = server_response_single_from_dict(_json)
                 print(pformat(fivem_server))
-                for player in fivem_server.data.players:
-                    self.playersDB.updatePlayer(fivem_server, player)
-                self.playersDB.save()
                 server.error = ""
                 embed = discord.Embed()
                 changes = []
@@ -204,10 +201,15 @@ class MyClient(discord.Client):
                     embed.colour = discord.Colour.orange()
                     embed.timestamp = now
                     await self.send_message(fivem_server, message="**Changes**: " + ", ".join(changes), embed=embed)
-                #
-                self.channel.topic = f"[{len(fivem_server.data.players)} / {fivem_server.data.sv_maxclients}] {sanitize(fivem_server.data.vars.sv_project_name)}"
-        # except Exception as ex:
-            # await self.fail(server, f"```\n[{now}]Failed to request data for \"{server.name}\" ({server.id}): {ex.args}\n``` <@467777925790564352>")
+                try:
+                    for player in fivem_server.data.players:
+                        self.playersDB.updatePlayer(fivem_server, player)
+                    self.playersDB.save()
+                except Exception as ex:
+                    await self.fail(server, f"```\n[{now}]Failed to index players for \"{server.name}\" ({server.id}): {str(ex)}\n``` <@467777925790564352>")
+                await self.channel.edit(topic=f"[{len(fivem_server.data.players)} / {fivem_server.data.sv_maxclients}] {sanitize(fivem_server.data.vars.sv_project_name)}\nLast Updated: {now}")
+        except Exception as ex:
+            await self.fail(server, f"```\n[{now}]Failed to request data for \"{server.name}\" ({server.id}): {ex.args}\n``` <@467777925790564352>")
 
     def load_response(self, filename):
         if not path.isfile(filename): self.save_response({}, filename)

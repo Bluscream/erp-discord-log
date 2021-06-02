@@ -129,4 +129,5 @@ dmypy.json
 .pyre/
 
 cache/*.cache.json
+cache/players.db.json
 start.sh
