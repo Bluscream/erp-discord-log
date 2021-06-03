@@ -11,7 +11,7 @@
 #     result = player_from_dict(json.loads(json_string))
 
 from dataclasses import dataclass
-from pprint import pprint
+from pprint import pformat
 from typing import Optional, Any, List, TypeVar, Type, Callable, cast
 from datetime import datetime
 import dateutil.parser
@@ -23,6 +23,10 @@ from Classes.fivem.ServerResponseSingle import Player as ServerPlayer
 from Classes.fivem.ServerResponseSingle import ServerResponseSingle
 
 T = TypeVar("T")
+
+def log(message, pretty = False, debug = False):
+    if debug: return
+    print(f"{datetime.now()}" + pformat(message) if pretty else message)
 
 
 def from_str(x: Any) -> str:
@@ -243,7 +247,7 @@ class Player:
         _player = Player()
         _player.seen_on = list()
         _player.seen_on.append(_seen_on)
-        pprint(_player)
+        log(True, _player)
         return _player
 
     def seenOnById(self, sid: str) -> SeenOn:
@@ -280,7 +284,7 @@ class PlayerDB:
         with open(file, 'r', encoding='utf-8') as f:
             for player in json.load(f):
                 self.players.append(player_from_dict(player))
-        print(f"Loaded PlayerDB from \"{file}\" with {len(self.players)} players.")
+        log(f"Loaded PlayerDB from \"{file}\" with {len(self.players)} players.")
 
     def save(self) -> None:
         with open(self.file, 'w', encoding='utf-8') as f:
@@ -288,7 +292,7 @@ class PlayerDB:
             for player in self.players:
                 lst.append(player_to_dict(player))
             json.dump(lst, f, ensure_ascii=False, indent=4)
-        print(f"Saved PlayerDB to \"{self.file}\" with {len(self.players)} players.")
+        log(f"Saved PlayerDB to \"{self.file}\" with {len(self.players)} players.")
 
     def getByName(self, name: str) -> List[Player]:
         result = list()
