@@ -8,3 +8,4 @@ class Server:
     name: str
     error: str
     channel: TextChannel
+    disabled: bool = False

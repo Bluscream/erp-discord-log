@@ -41,6 +41,7 @@ def sanitize(input: str) -> str:
     # log(f"Sanitizing {input}", False, True)
     return re.sub(r"\^\d", "", input.strip(), 0, re.MULTILINE)
 
+
 def cut(input: str) -> str:
     if input is None: return input
     return input[:2000]
@@ -97,7 +98,7 @@ class MyClient(discord.Client):
         self.servers = list()
         self.servers.append(Server("ykv8z5", "EndlessRP", "", 847469532174876683))
         self.servers.append(Server("l8r6jj", "EndlessRP Test", "", 849809046453485618))
-        self.servers.append(Server("vkj37r", "Drift Fantasy", "", 849812243042533376))
+        self.servers.append(Server("vkj37r", "Drift Fantasy", "", 849812243042533376, True))
         self.playersDB = PlayerDB(self.playersDBFile)
 
     async def on_ready(self):
@@ -110,22 +111,26 @@ class MyClient(discord.Client):
 
     async def on_message(self, message: discord.Message):
         cmd = message.content.split(" ")
-        sid = self.servers[0].id
-        for server in self.servers:
-            if server.channel.id == message.channel.id:
-                sid = server.id
-        if len(cmd) == 2: sid = cmd[1]
+        server = self.servers[0]
+        for _server in self.servers:
+            if _server.channel.id == message.channel.id:
+                server = _server
+        if len(cmd) == 2: server = Server(cmd[1], f"manual input ({cmd[1]})", "", message.channel)
         if cmd[0] == "!ping":
             await self.reply(message, "pong")
         elif cmd[0] == "!server":
-            await self.check_5mserver(sid)
+            await self.check_5mserver(server)
+        elif cmd[0] == "!toggle":
+            server.disabled = not server.disabled
+            status = "disabled" if server.disabled else "enabled"
+            await self.reply(message, content=f"{server.name} is now {status}")
         elif cmd[0] == "!servers":
             # log(self.servers, True, True)
             await self.servers[0].channel.send(pformat(self.servers))
             await self.main_loop(True)
         elif cmd[0] == "!players":
-            cache = self.get_Cache(cacheFile(sid))
-            if not cache: cache = await self.get_Server(sid)
+            cache = self.get_Cache(cacheFile(server.id))
+            if not cache: cache = await self.get_Server(server.id)
             embed = discord.Embed()
             embed.colour = discord.Colour.green()
             embed.title = f"Players [{len(cache.data.players)} / {cache.data.sv_maxclients}]"
@@ -134,23 +139,27 @@ class MyClient(discord.Client):
             await self.reply(message, embed=embed)
         elif cmd[0] == "!player" and len(cmd) > 1:
             name = " ".join(cmd.pop(0))
-            await self.reply(message, content="```json\n" + json.dumps(Player.to_dict(self.playersDB.getByName(name)[0])) + "\n```")
+            await self.reply(message, content="```json\n" + json.dumps(
+                Player.to_dict(self.playersDB.getByName(name)[0])) + "\n```")
         elif cmd[0] == "!resources":
-            cache = self.get_Cache(cacheFile(sid))
-            if not cache: cache = await self.get_Server(sid)
+            cache = self.get_Cache(cacheFile(server.id))
+            if not cache: cache = await self.get_Server(server.id)
             await self.reply(message, content="```css\n" + (sanitize(",".join(cache.data.resources)) + "\n```"))
 
     async def main_loop(self, destroy=False):
         log(f"Checking {len(self.servers)} servers...")
         while True:
             for s in self.servers:
+                if s.disabled:
+                    log(f"Server \"{s.name}\" ({s.id}) is disabled, skipping...")
+                    continue
                 log("Waiting 5 seconds for next server ...")
                 await asyncio.sleep(5)
                 log(f"Checking server \"{s.name}\" ({s.id})")
                 await self.check_5mserver(s)
             if destroy: break
-            log("Waiting 60 seconds for next round ...")
-            await asyncio.sleep(60)
+            log("Waiting 55 seconds for next round ...")
+            await asyncio.sleep(55)
 
     async def send_message(self, _server: Server, server: ServerResponseSingle, message: str = None,
                            embed: discord.Embed = None):
@@ -236,13 +245,23 @@ class MyClient(discord.Client):
                     await self.send_message(server, fivem_server, message="**Changes**: " + ", ".join(changes),
                                             embed=embed)
                     for player in fivem_server.data.players:
-                        try: self.playersDB.updatePlayer(fivem_server, player)
+                        try:
+                            self.playersDB.updatePlayer(fivem_server, player)
                         except Exception as ex:
-                            pass # await self.fail(server, f"Failed to index players for \"{server.name}\" ({server.id}): {str(ex)}", now)
+                            pass  # await self.fail(server, f"Failed to index players for \"{server.name}\" ({server.id}): {str(ex)}", now)
                     self.playersDB.save()
-                asyncio.get_event_loop().create_task(server.channel.edit(topic=f"[{len(fivem_server.data.players)} / {fivem_server.data.sv_maxclients}] {sanitize(fivem_server.data.hostname)}\nLast Updated: {now}"))
+                asyncio.get_event_loop().create_task(self.update_topic(server, fivem_server, now))
+
+
+
         except Exception as ex:
             await self.fail(server, f"Failed to request data for \"{server.name}\" ({server.id}): {ex.args}", now)
+
+    async def update_topic(self, server: Server, _server: ServerResponseSingle, timestamp):
+        newtopic = f"[{len(_server.data.players)} / {_server.data.sv_maxclients}] {sanitize(_server.data.hostname)}"
+        if server.channel.topic is None or not server.channel.topic.startswith(newtopic):
+            log(f"Settings channel topic of {server.channel.name} to \"{newtopic}\"", False, False)
+            await server.channel.edit(topic=newtopic+f"\nLast Updated: {timestamp}")
 
     def load_response(self, filename):
         if not path.isfile(filename): self.save_response({}, filename)
@@ -261,7 +280,8 @@ class MyClient(discord.Client):
         log(error, True)
         if server.error == error: return
         server.error = error
-        await server.channel.send(content=cut(f"```\n[{timestamp}] {error}\n```" + (" ||<@467777925790564352>||" if notify else "")))
+        await server.channel.send(
+            content=cut(f"```\n[{timestamp}] {error}\n```" + (" ||<@467777925790564352>||" if notify else "")))
 
 
 client = MyClient()

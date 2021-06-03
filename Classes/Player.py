@@ -26,7 +26,7 @@ T = TypeVar("T")
 
 def log(message, pretty = False, debug = False):
     if debug: return
-    print(f"{datetime.now()}" + pformat(message) if pretty else message)
+    print(f"[{datetime.now()}] " + (pformat(message) if pretty else message))
 
 
 def from_str(x: Any) -> str:
@@ -247,7 +247,7 @@ class Player:
         _player = Player()
         _player.seen_on = list()
         _player.seen_on.append(_seen_on)
-        log(True, _player)
+        log(_player, True, True)
         return _player
 
     def seenOnById(self, sid: str) -> SeenOn:
