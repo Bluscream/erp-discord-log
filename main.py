@@ -86,7 +86,7 @@ class MyClient(discord.Client):
         print(f"[AIOHTTP] Client created. {self.webclient.timeout}")
         print(f'[DISCORD] Logged on as {self.user} ({self.user.id})')
         for server in self.servers:
-            server.discord_channel = self.get_channel(server.discord_channel)
+            server.channel = self.get_channel(server.channel)
         client.loop.create_task(self.main_loop())
 
     async def on_message(self, message: discord.Message):
