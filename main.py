@@ -15,7 +15,7 @@ import aiohttp
 import discord
 
 from Classes.Player import Player, PlayerDB
-from Classes import Server
+from Classes.Server import Server
 from Classes.fivem.ServerResponseSingle import server_response_single_from_dict, ServerResponseSingle
 
 
@@ -67,9 +67,8 @@ def getPlayers(players) -> List[str]:
 
 class MyClient(discord.Client):
     api_url = "https://servers-frontend.fivem.net/api/servers/single/"
-    servers: list
+    servers: List[Server]
     webclient: aiohttp.ClientSession
-    channel: discord.TextChannel
     min_cache_time = 15
     playersDBFile = "cache/players.db.json"
     playersDB: PlayerDB
@@ -77,20 +76,24 @@ class MyClient(discord.Client):
     def __init__(self, **options):
         super().__init__(**options)
         self.servers = list()
-        self.servers.append(Server.Server("ykv8z5", "EndlessRP", ""))
-        self.servers.append(Server.Server("l8r6jj", "EndlessRP Test", "")) # vkj37r
+        self.servers.append(Server("ykv8z5", "EndlessRP", "", 847469532174876683))
+        self.servers.append(Server("l8r6jj", "EndlessRP Test", "", 847469532174876683)) # vkj37r
         self.playersDB = PlayerDB(self.playersDBFile)
 
     async def on_ready(self):
         self.webclient = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=60))
         print(f"[AIOHTTP] Client created. {self.webclient.timeout}")
-        self.channel = self.get_channel(847469532174876683)
         print(f'[DISCORD] Logged on as {self.user} ({self.user.id})')
+        for server in self.servers:
+            server.discord_channel = self.get_channel(server.discord_channel)
         client.loop.create_task(self.main_loop())
 
     async def on_message(self, message: discord.Message):
         cmd = message.content.split(" ")
-        sid = "ykv8z5"
+        sid = self.servers[0].id
+        for server in self.servers:
+            if server.channel.id == message.channel.id:
+                sid = server.id
         if len(cmd) == 2: sid = cmd[1]
         if cmd[0] == "!ping":
             await message.reply("pong")
@@ -98,7 +101,7 @@ class MyClient(discord.Client):
             await self.check_5mserver(sid)
         elif cmd[0] == "!servers":
             pprint(self.servers)
-            await self.channel.send(pformat(self.servers))
+            await self.servers[0].channel.send(pformat(self.servers))
             await self.main_loop(True)
         elif cmd[0] == "!players":
             cache = self.get_Cache(cacheFile(sid))
@@ -108,14 +111,14 @@ class MyClient(discord.Client):
             embed.title = f"Players [{len(cache.data.players)} / {cache.data.sv_maxclients}]"
             for player in cache.data.players:
                 embed.add_field(name=f"{player.name} (#{player.id})", value=f"{player.ping}ms")
-            await self.send_message(cache, embed=embed)
+            await message.reply(embed=embed)
         elif cmd[0] == "!player" and len(cmd) > 1:
             name = " ".join(cmd.pop(0))
-            await self.channel.send(content="```json\n"+json.dumps(Player.to_dict(self.playersDB.getByName(name)[0]))+"\n```")
+            await message.reply(content="```json\n"+json.dumps(Player.to_dict(self.playersDB.getByName(name)[0]))+"\n```")
         elif cmd[0] == "!resources":
             cache = self.get_Cache(cacheFile(sid))
             if not cache: cache = await self.get_Server(sid)
-            await self.send_message(cache, message="```css\n"+(sanitize(",".join(cache.data.resources))+"\n```"))
+            await message.reply(message="```css\n"+(sanitize(",".join(cache.data.resources))+"\n```"))
 
     async def main_loop(self, destroy = False):
         print(f"Checking {len(self.servers)} servers...")
@@ -125,15 +128,15 @@ class MyClient(discord.Client):
                 await self.check_5mserver(s)
                 await asyncio.sleep(15)
             if destroy: break
-            await asyncio.sleep(120)
+            await asyncio.sleep(30)
 
-    async def send_message(self, server:ServerResponseSingle, message:str = None, embed:discord.Embed = None):
+    async def send_message(self, _server: Server, server:ServerResponseSingle, message:str = None, embed:discord.Embed = None):
         if not embed: embed = discord.Embed()
         embed.set_footer(text=sanitize(server.data.vars.sv_project_name))
         if not embed.timestamp: embed.timestamp = datetime.now()
         embed.colour = discord.Colour.orange()
         print(pformat(embed))
-        await self.channel.send(content=message, embed=embed)
+        await _server.channel.send(content=message, embed=embed)
 
     def get_Cache(self, cfile:str):
         if path.isfile(cfile):
@@ -168,7 +171,7 @@ class MyClient(discord.Client):
             async with self.webclient.get(url) as response:
                 print(pformat(response))
                 if response.status != 200:
-                    await self.fail(server, f"```\n[{now}]Failed to request data for \"{server.name}\" ({server.id}): HTTP ERROR {response.status}\n```", now)
+                    await self.fail(server, f"Failed to request data for \"{server.name}\" ({server.id}): HTTP ERROR {response.status}", now)
                     return
                 _json = await response.json()
                 print(_json)
@@ -200,16 +203,16 @@ class MyClient(discord.Client):
                     embed.url = f"https://servers.fivem.net/servers/detail/{server.id}"
                     embed.colour = discord.Colour.orange()
                     embed.timestamp = now
-                    await self.send_message(fivem_server, message="**Changes**: " + ", ".join(changes), embed=embed)
+                    await self.send_message(server, fivem_server, message="**Changes**: " + ", ".join(changes), embed=embed)
                 try:
                     for player in fivem_server.data.players:
                         self.playersDB.updatePlayer(fivem_server, player)
                     self.playersDB.save()
                 except Exception as ex:
-                    await self.fail(server, f"```\nFailed to index players for \"{server.name}\" ({server.id}): {str(ex)}\n``` <@467777925790564352>", now)
-                await self.channel.edit(topic=f"[{len(fivem_server.data.players)} / {fivem_server.data.sv_maxclients}] {sanitize(fivem_server.data.vars.sv_project_name)}\nLast Updated: {now}")
+                    await self.fail(server, f"Failed to index players for \"{server.name}\" ({server.id}): {str(ex)}", now)
+                await server.channel.edit(topic=f"[{len(fivem_server.data.players)} / {fivem_server.data.sv_maxclients}] {sanitize(fivem_server.data.vars.sv_project_name)}\nLast Updated: {now}")
         except Exception as ex:
-            await self.fail(server, f"```\nFailed to request data for \"{server.name}\" ({server.id}): {ex.args}\n``` <@467777925790564352>", now)
+            await self.fail(server, f"Failed to request data for \"{server.name}\" ({server.id}): {ex.args}", now)
 
     def load_response(self, filename):
         if not path.isfile(filename): self.save_response({}, filename)
@@ -228,7 +231,7 @@ class MyClient(discord.Client):
         pprint(error)
         if server.error == error: return
         server.error = error
-        await self.channel.send(f"[{timestamp}] {error}")
+        await server.channel.send(f"```\n[{timestamp}] {error}\n```")
 
 client = MyClient()
 client.run(os.environ["DISCORD_BOT_TOKEN"])

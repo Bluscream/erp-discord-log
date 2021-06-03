@@ -1,9 +1,10 @@
 from dataclasses import dataclass
+from discord import TextChannel
 
 
 @dataclass
 class Server:
-    id: str = None
-    name: str = None
-    error: str = None
-    discord_channel: int = 0
+    id: str
+    name: str
+    error: str
+    channel: TextChannel
