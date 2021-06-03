@@ -77,7 +77,8 @@ class MyClient(discord.Client):
         super().__init__(**options)
         self.servers = list()
         self.servers.append(Server("ykv8z5", "EndlessRP", "", 847469532174876683))
-        self.servers.append(Server("l8r6jj", "EndlessRP Test", "", 847469532174876683)) # vkj37r
+        self.servers.append(Server("l8r6jj", "EndlessRP Test", "", 849809046453485618))
+        self.servers.append(Server("vkj37r", "Drift Fantasy", "", 849812243042533376))
         self.playersDB = PlayerDB(self.playersDBFile)
 
     async def on_ready(self):
