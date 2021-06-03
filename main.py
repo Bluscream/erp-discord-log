@@ -134,7 +134,7 @@ class MyClient(discord.Client):
         elif cmd[0] == "!resources":
             cache = self.get_Cache(cacheFile(sid))
             if not cache: cache = await self.get_Server(sid)
-            await self.reply(message, content="```css\n" + (sanitize("\n".join(cache.data.resources)) + "\n```"))
+            await self.reply(message, content="```css\n" + (sanitize(",".join(cache.data.resources)) + "\n```"))
 
     async def main_loop(self, destroy=False):
         log(f"Checking {len(self.servers)} servers...")
