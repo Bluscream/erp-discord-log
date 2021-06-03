@@ -41,6 +41,10 @@ def sanitize(input: str) -> str:
     # log(f"Sanitizing {input}", False, True)
     return re.sub(r"\^\d", "", input.strip(), 0, re.MULTILINE)
 
+def cut(input: str) -> str:
+    if input is None: return input
+    return input[:2000]
+
 
 def log(message, pretty=False, debug=False):
     if debug: return
@@ -156,10 +160,10 @@ class MyClient(discord.Client):
         if not embed.color: embed.colour = discord.Colour.orange()
         log(embed, pretty=True, debug=True)
         if message: message += " ||<@&849813983434113076>||"
-        await _server.channel.send(content=message[:2000], embed=embed)
+        await _server.channel.send(content=cut(message), embed=embed)
 
     async def reply(self, original_message: discord.Message, content: str = None, embed: discord.Embed = None):
-        await original_message.reply(content=content[:2000], embed=embed)
+        await original_message.reply(content=cut(content), embed=embed)
 
     def get_Cache(self, cfile: str):
         if path.isfile(cfile):
@@ -257,7 +261,7 @@ class MyClient(discord.Client):
         log(error, True)
         if server.error == error: return
         server.error = error
-        await server.channel.send(content=f"```\n[{timestamp}] {error}\n```" + (" ||<@467777925790564352>||" if notify else "")[:2000])
+        await server.channel.send(content=cut(f"```\n[{timestamp}] {error}\n```" + (" ||<@467777925790564352>||" if notify else "")))
 
 
 client = MyClient()
