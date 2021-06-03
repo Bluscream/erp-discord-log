@@ -168,7 +168,7 @@ class MyClient(discord.Client):
             async with self.webclient.get(url) as response:
                 print(pformat(response))
                 if response.status != 200:
-                    await self.fail(server, f"```\n[{now}]Failed to request data for \"{server.name}\" ({server.id}): HTTP ERROR {response.status}\n```")
+                    await self.fail(server, f"```\n[{now}]Failed to request data for \"{server.name}\" ({server.id}): HTTP ERROR {response.status}\n```", now)
                     return
                 _json = await response.json()
                 print(_json)
@@ -206,10 +206,10 @@ class MyClient(discord.Client):
                         self.playersDB.updatePlayer(fivem_server, player)
                     self.playersDB.save()
                 except Exception as ex:
-                    await self.fail(server, f"```\n[{now}]Failed to index players for \"{server.name}\" ({server.id}): {str(ex)}\n``` <@467777925790564352>")
+                    await self.fail(server, f"```\nFailed to index players for \"{server.name}\" ({server.id}): {str(ex)}\n``` <@467777925790564352>", now)
                 await self.channel.edit(topic=f"[{len(fivem_server.data.players)} / {fivem_server.data.sv_maxclients}] {sanitize(fivem_server.data.vars.sv_project_name)}\nLast Updated: {now}")
         except Exception as ex:
-            await self.fail(server, f"```\n[{now}]Failed to request data for \"{server.name}\" ({server.id}): {ex.args}\n``` <@467777925790564352>")
+            await self.fail(server, f"```\nFailed to request data for \"{server.name}\" ({server.id}): {ex.args}\n``` <@467777925790564352>", now)
 
     def load_response(self, filename):
         if not path.isfile(filename): self.save_response({}, filename)
@@ -224,11 +224,11 @@ class MyClient(discord.Client):
     def serverById(self, id):
         return next(s for s in self.servers if s.id == id)
 
-    async def fail(self, server, error):
+    async def fail(self, server, error, timestamp):
         pprint(error)
         if server.error == error: return
         server.error = error
-        await self.channel.send(error)
+        await self.channel.send(f"[{timestamp}] {error}")
 
 client = MyClient()
 client.run(os.environ["DISCORD_BOT_TOKEN"])
