@@ -131,13 +131,13 @@ class MyClient(discord.Client):
             if destroy: break
             await asyncio.sleep(30)
 
-    async def send_message(self, _server: Server, server: ServerResponseSingle, message: str = "", embed: discord.Embed = None):
+    async def send_message(self, _server: Server, server: ServerResponseSingle, message: str = None, embed: discord.Embed = None):
         if not embed: embed = discord.Embed()
         embed.set_footer(text=sanitize(server.data.vars.sv_project_name))
         if not embed.timestamp: embed.timestamp = datetime.now()
         embed.colour = discord.Colour.orange()
         print(pformat(embed))
-        message += " ||<#849813983434113076>||"
+        if message: message += " ||<#849813983434113076>||"
         await _server.channel.send(content=message, embed=embed)
 
     def get_Cache(self, cfile:str):
