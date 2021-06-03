@@ -131,12 +131,13 @@ class MyClient(discord.Client):
             if destroy: break
             await asyncio.sleep(30)
 
-    async def send_message(self, _server: Server, server:ServerResponseSingle, message:str = None, embed:discord.Embed = None):
+    async def send_message(self, _server: Server, server: ServerResponseSingle, message: str = "", embed: discord.Embed = None):
         if not embed: embed = discord.Embed()
         embed.set_footer(text=sanitize(server.data.vars.sv_project_name))
         if not embed.timestamp: embed.timestamp = datetime.now()
         embed.colour = discord.Colour.orange()
         print(pformat(embed))
+        message += " ||<#849813983434113076>||"
         await _server.channel.send(content=message, embed=embed)
 
     def get_Cache(self, cfile:str):
@@ -228,11 +229,11 @@ class MyClient(discord.Client):
     def serverById(self, id):
         return next(s for s in self.servers if s.id == id)
 
-    async def fail(self, server, error, timestamp):
+    async def fail(self, server, error, timestamp, notify = False):
         pprint(error)
         if server.error == error: return
         server.error = error
-        await server.channel.send(f"```\n[{timestamp}] {error}\n```")
+        await server.channel.send(f"```\n[{timestamp}] {error}\n```" + " ||<@467777925790564352>||" if notify else "")
 
 client = MyClient()
 client.run(os.environ["DISCORD_BOT_TOKEN"])
