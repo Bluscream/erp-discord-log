@@ -99,6 +99,9 @@ class MyClient(discord.Client):
         self.servers.append(Server("ykv8z5", "EndlessRP", "", 847469532174876683))
         self.servers.append(Server("l8r6jj", "EndlessRP Test", "", 849809046453485618))
         self.servers.append(Server("vkj37r", "Drift Fantasy", "", 849812243042533376, True))
+        self.servers.append(Server("8abjev", "BluTest_8abjev", "", 850822912347734077))
+        self.servers.append(Server("3b9plz", "BluTest_3b9plz", "", 850822912347734077))
+        self.servers.append(Server("6v9zdj", "BluTest_6v9zdj", "", 850822912347734077))
         self.playersDB = PlayerDB(self.playersDBFile)
 
     async def on_ready(self):
